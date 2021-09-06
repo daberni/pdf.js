@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <!--
 Copyright 2012 Mozilla Foundation
 
@@ -178,6 +178,58 @@ See https://github.com/adobe-type-tools/cmap-resources
 <!--#endif-->
       </div>  <!-- overlayContainer -->
 
-    </div> <!-- outerContainer -->
-  </body>
+  </div> <!-- outerContainer -->
+
+  <script type="text/javascript">
+    function getViewerConfiguration() {
+      return {
+        appContainer: document.body,
+        mainContainer: document.getElementById("viewerContainer"),
+        viewerContainer: document.getElementById("viewer"),
+        eventBus: null,
+        toolbar: {
+          container: document.getElementById("toolbarViewer"),
+          numPages: document.getElementById("numPages"),
+          pageNumber: document.getElementById("pageNumber"),
+          scaleSelectContainer: document.getElementById("scaleSelectContainer"),
+          scaleSelect: document.getElementById("scaleSelect"),
+          customScaleOption: document.getElementById("customScaleOption"),
+          previous: document.getElementById("previous"),
+          next: document.getElementById("next"),
+          zoomIn: document.getElementById("zoomIn"),
+          zoomOut: document.getElementById("zoomOut"),
+        },
+        sidebar: {
+          // Divs (and sidebar button)
+          outerContainer: document.getElementById("outerContainer"),
+          viewerContainer: document.getElementById("viewerContainer"),
+          // Views
+          thumbnailView: document.getElementById("thumbnailView"),
+        },
+        passwordOverlay: {
+          overlayName: "passwordOverlay",
+          container: document.getElementById("passwordOverlay"),
+          label: document.getElementById("passwordText"),
+          input: document.getElementById("password"),
+          submitButton: document.getElementById("passwordSubmit"),
+          cancelButton: document.getElementById("passwordCancel"),
+        },
+        openFileInputName: "fileInput",
+        debuggerScriptPath: "./debugger.js",
+      };
+    }
+
+    window.addEventListener("DOMContentLoaded", function () {
+      if (window.PDFViewerApplication) {
+        console.log("init directly");
+        window.PDFViewerApplication.run(getViewerConfiguration());
+      } else {
+        window.addEventListener("PDFViewerInitialized", function (event) {
+          console.log("init after event");
+          window.PDFViewerApplication.run(getViewerConfiguration());
+        });
+      }
+    });
+  </script>
+</body>
 </html>
