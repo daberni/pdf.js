@@ -1796,10 +1796,8 @@ const PDFViewerApplication = {
     eventBus._on("pagechanging", webViewerPageChanging);
     eventBus._on("scalechanging", webViewerScaleChanging);
     eventBus._on("rotationchanging", webViewerRotationChanging);
-    eventBus._on("sidebarviewchanged", webViewerSidebarViewChanged);
     eventBus._on("pagemode", webViewerPageMode);
     eventBus._on("namedaction", webViewerNamedAction);
-    eventBus._on("presentationmodechanged", webViewerPresentationModeChanged);
     eventBus._on("presentationmode", webViewerPresentationMode);
     eventBus._on("print", webViewerPrint);
     eventBus._on("download", webViewerDownload);
@@ -1889,10 +1887,8 @@ const PDFViewerApplication = {
     eventBus._off("pagechanging", webViewerPageChanging);
     eventBus._off("scalechanging", webViewerScaleChanging);
     eventBus._off("rotationchanging", webViewerRotationChanging);
-    eventBus._off("sidebarviewchanged", webViewerSidebarViewChanged);
     eventBus._off("pagemode", webViewerPageMode);
     eventBus._off("namedaction", webViewerNamedAction);
-    eventBus._off("presentationmodechanged", webViewerPresentationModeChanged);
     eventBus._off("presentationmode", webViewerPresentationMode);
     eventBus._off("print", webViewerPrint);
     eventBus._off("download", webViewerDownload);
@@ -2273,21 +2269,6 @@ function webViewerNamedAction(evt) {
     case "SaveAs":
       webViewerSave();
       break;
-  }
-}
-
-function webViewerPresentationModeChanged(evt) {
-  PDFViewerApplication.pdfViewer.presentationModeState = evt.state;
-}
-
-function webViewerSidebarViewChanged(evt) {
-  PDFViewerApplication.pdfRenderingQueue.isThumbnailViewEnabled =
-    PDFViewerApplication.pdfSidebar.isThumbnailViewVisible;
-
-  const store = PDFViewerApplication.store;
-  if (store && PDFViewerApplication.isInitialViewSet) {
-    // Only update the storage when the document has been loaded *and* rendered.
-    store.set("sidebarView", evt.view).catch(function () {});
   }
 }
 
