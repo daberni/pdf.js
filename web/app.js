@@ -21,7 +21,6 @@ import {
   AutoPrintRegExp,
   DEFAULT_SCALE_VALUE,
   EventBus,
-  getActiveOrFocusedElement,
   isValidRotation,
   isValidScrollMode,
   isValidSpreadMode,
@@ -58,10 +57,10 @@ import {
   UNSUPPORTED_FEATURES,
   version,
 } from "pdfjs-lib";
-import { CursorTool, PDFCursorTools } from "./pdf_cursor_tools.js";
 import { PDFRenderingQueue, RenderingStates } from "./pdf_rendering_queue.js";
 import { OverlayManager } from "./overlay_manager.js";
 import { PasswordPrompt } from "./password_prompt.js";
+import { PDFCursorTools } from "./pdf_cursor_tools.js";
 import { PDFFindController } from "./pdf_find_controller.js";
 import { PDFHistory } from "./pdf_history.js";
 import { PDFLinkService } from "./pdf_link_service.js";
@@ -1868,7 +1867,6 @@ const PDFViewerApplication = {
     window.addEventListener("touchstart", webViewerTouchStart, {
       passive: false,
     });
-    window.addEventListener("keydown", webViewerKeyDown);
     window.addEventListener("resize", _boundEvents.windowResize);
     window.addEventListener("hashchange", _boundEvents.windowHashChange);
     window.addEventListener("beforeprint", _boundEvents.windowBeforePrint);
@@ -1943,7 +1941,6 @@ const PDFViewerApplication = {
     window.removeEventListener("touchstart", webViewerTouchStart, {
       passive: false,
     });
-    window.removeEventListener("keydown", webViewerKeyDown);
     window.removeEventListener("resize", _boundEvents.windowResize);
     window.removeEventListener("hashchange", _boundEvents.windowHashChange);
     window.removeEventListener("beforeprint", _boundEvents.windowBeforePrint);
@@ -2635,302 +2632,6 @@ function webViewerTouchStart(evt) {
     // touchmove events to drive it. Or if we want to settle for a less good
     // experience we can make the touchmove events drive the existing step-zoom
     // behaviour that the ctrl+mousewheel path takes.
-    evt.preventDefault();
-  }
-}
-
-function webViewerKeyDown(evt) {
-  if (PDFViewerApplication.overlayManager.active) {
-    return;
-  }
-
-  let handled = false,
-    ensureViewerFocused = false;
-  const cmd =
-    (evt.ctrlKey ? 1 : 0) |
-    (evt.altKey ? 2 : 0) |
-    (evt.shiftKey ? 4 : 0) |
-    (evt.metaKey ? 8 : 0);
-
-  const pdfViewer = PDFViewerApplication.pdfViewer;
-  const isViewerInPresentationMode = pdfViewer?.isInPresentationMode;
-
-  // First, handle the key bindings that are independent whether an input
-  // control is selected or not.
-  if (cmd === 1 || cmd === 8 || cmd === 5 || cmd === 12) {
-    // either CTRL or META key with optional SHIFT.
-    switch (evt.keyCode) {
-      case 71: // g
-        if (!PDFViewerApplication.supportsIntegratedFind) {
-          const findState = PDFViewerApplication.findController.state;
-          if (findState) {
-            PDFViewerApplication.findController.executeCommand("findagain", {
-              query: findState.query,
-              phraseSearch: findState.phraseSearch,
-              caseSensitive: findState.caseSensitive,
-              entireWord: findState.entireWord,
-              highlightAll: findState.highlightAll,
-              findPrevious: cmd === 5 || cmd === 12,
-            });
-          }
-          handled = true;
-        }
-        break;
-      case 61: // FF/Mac '='
-      case 107: // FF '+' and '='
-      case 187: // Chrome '+'
-      case 171: // FF with German keyboard
-        if (!isViewerInPresentationMode) {
-          PDFViewerApplication.zoomIn();
-        }
-        handled = true;
-        break;
-      case 173: // FF/Mac '-'
-      case 109: // FF '-'
-      case 189: // Chrome '-'
-        if (!isViewerInPresentationMode) {
-          PDFViewerApplication.zoomOut();
-        }
-        handled = true;
-        break;
-      case 48: // '0'
-      case 96: // '0' on Numpad of Swedish keyboard
-        if (!isViewerInPresentationMode) {
-          // keeping it unhandled (to restore page zoom to 100%)
-          setTimeout(function () {
-            // ... and resetting the scale after browser adjusts its scale
-            PDFViewerApplication.zoomReset();
-          });
-          handled = false;
-        }
-        break;
-
-      case 38: // up arrow
-        if (isViewerInPresentationMode || PDFViewerApplication.page > 1) {
-          PDFViewerApplication.page = 1;
-          handled = true;
-          ensureViewerFocused = true;
-        }
-        break;
-      case 40: // down arrow
-        if (
-          isViewerInPresentationMode ||
-          PDFViewerApplication.page < PDFViewerApplication.pagesCount
-        ) {
-          PDFViewerApplication.page = PDFViewerApplication.pagesCount;
-          handled = true;
-          ensureViewerFocused = true;
-        }
-        break;
-    }
-  }
-
-  if (typeof PDFJSDev === "undefined" || PDFJSDev.test("GENERIC || CHROME")) {
-    const { eventBus } = PDFViewerApplication;
-
-    // CTRL or META without shift
-    if (cmd === 1 || cmd === 8) {
-      switch (evt.keyCode) {
-        case 83: // s
-          eventBus.dispatch("download", { source: window });
-          handled = true;
-          break;
-
-        case 79: // o
-          if (typeof PDFJSDev === "undefined" || PDFJSDev.test("GENERIC")) {
-            eventBus.dispatch("openfile", { source: window });
-            handled = true;
-          }
-          break;
-      }
-    }
-  }
-
-  // CTRL+ALT or Option+Command
-  if (cmd === 3 || cmd === 10) {
-    switch (evt.keyCode) {
-      case 80: // p
-        PDFViewerApplication.requestPresentationMode();
-        handled = true;
-        break;
-      case 71: // g
-        // focuses input#pageNumber field
-        PDFViewerApplication.appConfig.toolbar.pageNumber.select();
-        handled = true;
-        break;
-    }
-  }
-
-  if (handled) {
-    if (ensureViewerFocused && !isViewerInPresentationMode) {
-      pdfViewer.focus();
-    }
-    evt.preventDefault();
-    return;
-  }
-
-  // Some shortcuts should not get handled if a control/input element
-  // is selected.
-  const curElement = getActiveOrFocusedElement();
-  const curElementTagName = curElement?.tagName.toUpperCase();
-  if (
-    curElementTagName === "INPUT" ||
-    curElementTagName === "TEXTAREA" ||
-    curElementTagName === "SELECT" ||
-    curElement?.isContentEditable
-  ) {
-    // Make sure that the secondary toolbar is closed when Escape is pressed.
-    if (evt.keyCode !== /* Esc = */ 27) {
-      return;
-    }
-  }
-
-  // No control key pressed at all.
-  if (cmd === 0) {
-    let turnPage = 0,
-      turnOnlyIfPageFit = false;
-    switch (evt.keyCode) {
-      case 38: // up arrow
-      case 33: // pg up
-        // vertical scrolling using arrow/pg keys
-        if (pdfViewer.isVerticalScrollbarEnabled) {
-          turnOnlyIfPageFit = true;
-        }
-        turnPage = -1;
-        break;
-      case 8: // backspace
-        if (!isViewerInPresentationMode) {
-          turnOnlyIfPageFit = true;
-        }
-        turnPage = -1;
-        break;
-      case 37: // left arrow
-        // horizontal scrolling using arrow keys
-        if (pdfViewer.isHorizontalScrollbarEnabled) {
-          turnOnlyIfPageFit = true;
-        }
-      /* falls through */
-      case 75: // 'k'
-      case 80: // 'p'
-        turnPage = -1;
-        break;
-
-      case 40: // down arrow
-      case 34: // pg down
-        // vertical scrolling using arrow/pg keys
-        if (pdfViewer.isVerticalScrollbarEnabled) {
-          turnOnlyIfPageFit = true;
-        }
-        turnPage = 1;
-        break;
-      case 13: // enter key
-      case 32: // spacebar
-        if (!isViewerInPresentationMode) {
-          turnOnlyIfPageFit = true;
-        }
-        turnPage = 1;
-        break;
-      case 39: // right arrow
-        // horizontal scrolling using arrow keys
-        if (pdfViewer.isHorizontalScrollbarEnabled) {
-          turnOnlyIfPageFit = true;
-        }
-      /* falls through */
-      case 74: // 'j'
-      case 78: // 'n'
-        turnPage = 1;
-        break;
-
-      case 36: // home
-        if (isViewerInPresentationMode || PDFViewerApplication.page > 1) {
-          PDFViewerApplication.page = 1;
-          handled = true;
-          ensureViewerFocused = true;
-        }
-        break;
-      case 35: // end
-        if (
-          isViewerInPresentationMode ||
-          PDFViewerApplication.page < PDFViewerApplication.pagesCount
-        ) {
-          PDFViewerApplication.page = PDFViewerApplication.pagesCount;
-          handled = true;
-          ensureViewerFocused = true;
-        }
-        break;
-
-      case 83: // 's'
-        PDFViewerApplication.pdfCursorTools.switchTool(CursorTool.SELECT);
-        break;
-      case 72: // 'h'
-        PDFViewerApplication.pdfCursorTools.switchTool(CursorTool.HAND);
-        break;
-
-      case 82: // 'r'
-        PDFViewerApplication.rotatePages(90);
-        break;
-
-      case 115: // F4
-        PDFViewerApplication.pdfSidebar.toggle();
-        break;
-    }
-
-    if (
-      turnPage !== 0 &&
-      (!turnOnlyIfPageFit || pdfViewer.currentScaleValue === "page-fit")
-    ) {
-      if (turnPage > 0) {
-        pdfViewer.nextPage();
-      } else {
-        pdfViewer.previousPage();
-      }
-      handled = true;
-    }
-  }
-
-  // shift-key
-  if (cmd === 4) {
-    switch (evt.keyCode) {
-      case 13: // enter key
-      case 32: // spacebar
-        if (
-          !isViewerInPresentationMode &&
-          pdfViewer.currentScaleValue !== "page-fit"
-        ) {
-          break;
-        }
-        if (PDFViewerApplication.page > 1) {
-          PDFViewerApplication.page--;
-        }
-        handled = true;
-        break;
-
-      case 82: // 'r'
-        PDFViewerApplication.rotatePages(-90);
-        break;
-    }
-  }
-
-  if (!handled && !isViewerInPresentationMode) {
-    // 33=Page Up  34=Page Down  35=End    36=Home
-    // 37=Left     38=Up         39=Right  40=Down
-    // 32=Spacebar
-    if (
-      (evt.keyCode >= 33 && evt.keyCode <= 40) ||
-      (evt.keyCode === 32 && curElementTagName !== "BUTTON")
-    ) {
-      ensureViewerFocused = true;
-    }
-  }
-
-  if (ensureViewerFocused && !pdfViewer.containsElement(curElement)) {
-    // The page container is not focused, but a page navigation key has been
-    // pressed. Change the focus to the viewer container to make sure that
-    // navigation by keyboard works as expected.
-    pdfViewer.focus();
-  }
-
-  if (handled) {
     evt.preventDefault();
   }
 }
